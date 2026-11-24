@@ -1,6 +1,8 @@
 import { MOD, esc } from "./util.js";
 
 const BARD_RE = /bardic inspiration|bardische inspiration|barden-?inspiration/i;
+// Das Merkmal aus dem Regelwerk vergibt an den Empfänger den Effekt „Inspired“
+const HELD_RE = /^(inspired|inspiriert)$/i;
 const bardUsed = new Set();
 
 export function registerInspirationSettings() {
@@ -84,15 +86,30 @@ function bardDie(actor) {
 /** Effekt „Bardische Inspiration“, den ein Charakter von einem Barden erhalten hat */
 function heldBardicEffect(actor) {
   const effects = actor.appliedEffects ?? actor.effects.filter(e => !e.disabled);
-  return effects.find(e => BARD_RE.test(e.name)) ?? null;
+  return effects.find(e => BARD_RE.test(e.name) || HELD_RE.test(e.name) || !!originBardItem(e)) ?? null;
+}
+
+/** Stammt der Effekt vom Merkmal „Bardische Inspiration“ eines (anderen) Charakters? */
+function originBardItem(effect) {
+  try {
+    const itemUuid = String(effect.origin ?? "").match(/^(.*\.Item\.[^.]+)/)?.[1];
+    if (!itemUuid) return null;
+    const item = fromUuidSync(itemUuid);
+    if (!item || item.actor === effect.parent) return null;
+    return (item.system?.identifier === "bardic-inspiration" || BARD_RE.test(item.name)) ? item : null;
+  } catch (err) { return null; }
 }
 
 /** Würfel für einen gehaltenen Effekt: vom Barden, der ihn vergeben hat, sonst vom Barden der Gruppe, sonst W6 */
 async function heldBardicDie(effect) {
   let bard = null;
   try {
-    const origin = effect.origin ? await fromUuid(effect.origin) : null;
-    bard = origin?.actor ?? origin?.item?.actor ?? origin?.parent?.actor ?? (origin?.documentName === "Actor" ? origin : null);
+    bard = originBardItem(effect)?.actor ?? null;
+    if (!bard) {
+      const origin = effect.origin ? await fromUuid(effect.origin) : null;
+      bard = origin?.actor ?? origin?.item?.actor ?? origin?.parent?.actor ?? (origin?.documentName === "Actor" ? origin : null);
+    }
+    if (bard && !bard.classes?.bard && !bardItem(bard)) bard = null;
   } catch (err) { /* Ursprung nicht auffindbar */ }
   bard ??= game.actors.find(a => a.type === "character" && a.hasPlayerOwner && a.classes?.bard);
   return bard ? bardDie(bard) : "1d6";
