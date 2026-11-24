@@ -16,7 +16,7 @@ export function registerInspirationSettings() {
   });
   game.settings.register(MOD, "bardicButton", {
     name: "Bardische Inspiration an fremden Würfen anbieten",
-    hint: "Wer einen Charakter mit dem Merkmal „Bardische Inspiration“ besitzt, bekommt an Würfen der anderen einen Knopf, um einen Inspirationswürfel beizusteuern.",
+    hint: "Für Runden, die den Würfel nicht vorab als Effekt vergeben: Wer einen Charakter mit dem Merkmal „Bardische Inspiration“ besitzt, bekommt an Würfen der anderen einen Knopf, um direkt einen Inspirationswürfel beizusteuern.",
     scope: "world", config: true, type: Boolean, default: true
   });
 }
@@ -81,6 +81,23 @@ function bardDie(actor) {
   return lvl >= 15 ? "1d12" : lvl >= 10 ? "1d10" : lvl >= 5 ? "1d8" : "1d6";
 }
 
+/** Effekt „Bardische Inspiration“, den ein Charakter von einem Barden erhalten hat */
+function heldBardicEffect(actor) {
+  const effects = actor.appliedEffects ?? actor.effects.filter(e => !e.disabled);
+  return effects.find(e => BARD_RE.test(e.name)) ?? null;
+}
+
+/** Würfel für einen gehaltenen Effekt: vom Barden, der ihn vergeben hat, sonst vom Barden der Gruppe, sonst W6 */
+async function heldBardicDie(effect) {
+  let bard = null;
+  try {
+    const origin = effect.origin ? await fromUuid(effect.origin) : null;
+    bard = origin?.actor ?? origin?.item?.actor ?? origin?.parent?.actor ?? (origin?.documentName === "Actor" ? origin : null);
+  } catch (err) { /* Ursprung nicht auffindbar */ }
+  bard ??= game.actors.find(a => a.type === "character" && a.hasPlayerOwner && a.classes?.bard);
+  return bard ? bardDie(bard) : "1d6";
+}
+
 /** Eigene Barden des aktuellen Spielers (nicht für den SL) */
 function myBards(exceptActor) {
   if (game.user.isGM) return [];
@@ -123,10 +140,21 @@ function onRenderMessage(message, html) {
     // Eigene Inspiration: Neuwurf
     if (actor.type === "character" && actor.isOwner) {
       const wrap = makeButton(outcome,
-        `<i class="fa-solid fa-sun"></i> ${prefix}Inspiration nutzen &amp; neu würfeln`,
+        `<i class="fa-solid fa-sun"></i> ${prefix}Use Heroic Inspiration`,
         ev => onUseInspiration(ev, message));
       wrap.dataset.actorUuid = actor.uuid;
       wrap.hidden = !actor.system?.attributes?.inspiration;
+      wrap.dataset.tooltip = "Verbraucht die Inspiration und würfelt neu";
+      container.append(wrap);
+    }
+
+    // Erhaltene Bardische Inspiration: Würfel zum eigenen Wurf addieren
+    if (actor.isOwner && heldBardicEffect(actor)) {
+      const wrap = makeButton(`${outcome} bardic`,
+        `<i class="fa-solid fa-music"></i> ${prefix}Use Bardic Inspiration`,
+        ev => onUseHeldBardic(ev, message));
+      wrap.dataset.tooltip = "Verbraucht den erhaltenen Inspirationswürfel und addiert ihn zum Wurf";
+      wrap.dataset.held = actor.uuid;
       container.append(wrap);
     }
 
@@ -202,12 +230,7 @@ async function onBardicInspiration(event, message, bard) {
     const die = await new Roll(bardDie(bard)).evaluate();
     const total = roll.total + die.total;
     const target = getTarget(message, roll);
-    let verdict = "";
-    if (target !== null) {
-      verdict = total >= target
-        ? ` – <strong class="imres-ok">damit geschafft!</strong>`
-        : ` – <strong class="imres-bad">reicht leider nicht.</strong>`;
-    }
+    const verdict = verdictHtml(message, total, target);
     await ChatMessage.create({
       speaker: ChatMessage.getSpeaker({ actor: bard }),
       flavor: `<span class="imres-tag"><i class="fa-solid fa-music"></i> Bardische Inspiration für ${esc(actor.name)}</span><br>${roll.total} + ${die.total} = <strong>${total}</strong>${verdict}`,
@@ -220,6 +243,51 @@ async function onBardicInspiration(event, message, bard) {
     btn.closest(".imres-inspiration")?.remove();
   } catch (err) {
     console.error(`${MOD} | Bardische Inspiration`, err);
+    ui.notifications.error("Bardische Inspiration ist fehlgeschlagen (Details in der Konsole, F12).");
+    btn.disabled = false;
+  }
+}
+
+function verdictHtml(message, total, target) {
+  if (target === null) return "";
+  const ok = total >= target;
+  const text = isAttack(message) ? (ok ? "damit getroffen!" : "trifft trotzdem nicht.") : (ok ? "damit geschafft!" : "reicht leider nicht.");
+  return ` – <strong class="${ok ? "imres-ok" : "imres-bad"}">${text}</strong>`;
+}
+
+async function onUseHeldBardic(event, message) {
+  event.preventDefault();
+  event.stopPropagation();
+  const btn = event.currentTarget;
+  const roll = getD20Roll(message);
+  const actor = getActor(message);
+  const effect = actor ? heldBardicEffect(actor) : null;
+  if (!roll || !actor) return;
+  if (!effect) {
+    ui.notifications.warn(`${actor.name} hat keine Bardische Inspiration (mehr).`);
+    btn.closest(".imres-inspiration")?.remove();
+    return;
+  }
+  btn.disabled = true;
+  try {
+    const formula = await heldBardicDie(effect);
+    await effect.delete();
+    const die = await new Roll(formula).evaluate();
+    const total = roll.total + die.total;
+    await ChatMessage.create({
+      speaker: message.speaker,
+      flavor: `<span class="imres-tag"><i class="fa-solid fa-music"></i> Bardische Inspiration</span><br>${roll.total} + ${die.total} = <strong>${total}</strong>${verdictHtml(message, total, getTarget(message, roll))}`,
+      rolls: [die],
+      whisper: message.whisper ?? [],
+      sound: CONFIG.sounds.dice,
+      flags: { [MOD]: { bardic: true } }
+    });
+    for (const el of document.querySelectorAll(".imres-inspiration.bardic[data-held]")) {
+      if (el.dataset.held === actor.uuid) el.remove();
+    }
+    btn.closest(".imres-inspiration")?.remove();
+  } catch (err) {
+    console.error(`${MOD} | Bardische Inspiration nutzen`, err);
     ui.notifications.error("Bardische Inspiration ist fehlgeschlagen (Details in der Konsole, F12).");
     btn.disabled = false;
   }
