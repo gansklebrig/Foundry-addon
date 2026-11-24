@@ -93,7 +93,7 @@ export function initFormation() {
       { name: "imresFormationPlace", title: "Formation platzieren (danach auf die Karte klicken)", icon: "fa-solid fa-flag", fn: placeFormation }
     ];
     for (const d of defs) {
-      const tool = { name: d.name, title: d.title, icon: d.icon, button: true, visible: true, onChange: () => d.fn(), onClick: () => d.fn() };
+      const tool = { name: d.name, title: d.title, icon: d.icon, button: true, visible: true, onChange: () => d.fn() };
       if (Array.isArray(tools)) tools.push(tool);
       else tools[d.name] = { ...tool, order: Object.keys(tools).length };
     }
