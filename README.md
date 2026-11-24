@@ -3,7 +3,10 @@
 Kleines Modul für Foundry VTT (v13/v14) mit dem D&D-5e-System (ab 5.0).
 
 - **Inspiration am Wurf:** Bei einem misslungenen Angriff, Rettungswurf oder einer Probe erscheint in der Chatnachricht ein Knopf, um die Inspiration zu verbrauchen und neu zu würfeln.
-- **Konzentrations-Leiste:** Über der Makroleiste erscheint ein Icon für jeden Konzentrationszauber; ein Klick beendet die Konzentration.
+- **Bardische Inspiration:** Wer einen Barden spielt, bekommt an den Würfen der anderen einen Knopf, um einen Inspirationswürfel beizusteuern.
+- **Konzentration:** Icon über der Makroleiste für jeden Konzentrationszauber (Klick beendet sie); bei misslungenem Konzentrationswurf endet sie automatisch.
+- **Gruppen-Leiste:** Verschiebbare Übersicht aller Helden mit Trefferpunkten, Inspiration und Konzentration. Klick auf die Sonne eines Mitspielers gibt die eigene Inspiration weiter; der Spielleiter vergibt sie per Klick.
+- **Marschformation (Spielleiter):** Zwei Knöpfe in den Token-Werkzeugen: markierte Tokens als Formation speichern und mit einem Klick auf der Karte platzieren.
 
 ## Installation
 

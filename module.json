@@ -1,8 +1,8 @@
 {
   "id": "imres-toolkit",
   "title": "Imres Toolkit",
-  "description": "Inspiration direkt am Wurf nutzen (Neuwurf bei Fehlschlag) und Konzentrations-Icons über der Makroleiste zum Beenden der Konzentration. Für das D&D-5e-System.",
-  "version": "1.0.0",
+  "description": "Inspiration direkt am Wurf nutzen oder weitergeben, Bardische Inspiration, Konzentrations-Icons, Gruppen-Leiste und Marschformation. Für das D&D-5e-System.",
+  "version": "1.1.0",
   "authors": [
     {
       "name": "gansklebrig"
@@ -31,5 +31,6 @@
   ],
   "url": "https://github.com/gansklebrig/Foundry-addon",
   "manifest": "https://raw.githubusercontent.com/gansklebrig/Foundry-addon/main/module.json",
-  "download": "https://raw.githubusercontent.com/gansklebrig/Foundry-addon/main/imres-toolkit.zip"
+  "download": "https://raw.githubusercontent.com/gansklebrig/Foundry-addon/main/imres-toolkit.zip",
+  "socket": true
 }
